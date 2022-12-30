@@ -2,23 +2,31 @@ mod actions;
 mod audio;
 mod loading;
 mod menu;
+mod oware;
 mod player;
 
-use crate::actions::ActionsPlugin;
-use crate::audio::InternalAudioPlugin;
-use crate::loading::LoadingPlugin;
-use crate::menu::MenuPlugin;
-use crate::player::PlayerPlugin;
+use std::time::Duration;
 
 use bevy::app::App;
+use bevy::prelude::*;
+
+use actions::ActionsPlugin;
+use audio::InternalAudioPlugin;
+use loading::LoadingPlugin;
+use menu::MenuPlugin;
+use oware::OwarePlugin;
+// use player::PlayerPlugin;
+
 #[cfg(debug_assertions)]
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
-use bevy::prelude::*;
+
+#[cfg(feature = "dev")]
+use bevy_inspector_egui::WorldInspectorPlugin;
 
 // This example game uses States to separate logic
 // See https://bevy-cheatbook.github.io/programming/states.html
 // Or https://github.com/bevyengine/bevy/blob/main/examples/ecs/state.rs
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Copy)]
 enum GameState {
     // During the loading State the LoadingPlugin will load our assets
     Loading,
@@ -37,12 +45,29 @@ impl Plugin for GamePlugin {
             .add_plugin(MenuPlugin)
             .add_plugin(ActionsPlugin)
             .add_plugin(InternalAudioPlugin)
-            .add_plugin(PlayerPlugin);
+            .add_plugin(OwarePlugin::<4>)
+            // .add_plugin(PlayerPlugin);
+            ;
+
+        #[cfg(feature = "dev")]
+        app.add_system(auto_start)
+            .add_plugin(WorldInspectorPlugin::new());
 
         #[cfg(debug_assertions)]
         {
             app.add_plugin(FrameTimeDiagnosticsPlugin::default())
                 .add_plugin(LogDiagnosticsPlugin::default());
+        }
+    }
+}
+
+fn auto_start(mut state: ResMut<State<GameState>>, time: Res<Time>, mut timer: Local<Timer>) {
+    if state.current() == &GameState::Menu {
+        if timer.duration() == Duration::ZERO {
+            timer.set_duration(Duration::from_millis(7729));
+        }
+        if timer.tick(time.delta()).just_finished() {
+            state.set(GameState::Playing).unwrap();
         }
     }
 }

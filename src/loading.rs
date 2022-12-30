@@ -14,7 +14,7 @@ impl Plugin for LoadingPlugin {
             LoadingState::new(GameState::Loading)
                 .with_collection::<FontAssets>()
                 .with_collection::<AudioAssets>()
-                .with_collection::<TextureAssets>()
+                .with_collection::<BoardAssets>()
                 .continue_to_state(GameState::Menu),
         );
     }
@@ -36,7 +36,13 @@ pub struct AudioAssets {
 }
 
 #[derive(AssetCollection, Resource)]
-pub struct TextureAssets {
+pub struct BoardAssets {
     #[asset(path = "textures/bevy.png")]
-    pub texture_bevy: Handle<Image>,
+    pub bevy: Handle<Image>,
+    #[asset(path = "textures/Ghostpixxells_pixelfood/69_meatball.png")]
+    pub meatball: Handle<Image>,
+    #[asset(path = "textures/Ghostpixxells_pixelfood/04_bowl.png")]
+    pub bowl: Handle<Image>,
+    #[asset(path = "fonts/FiraSans-Bold.ttf")]
+    pub fira_sans: Handle<Font>,
 }

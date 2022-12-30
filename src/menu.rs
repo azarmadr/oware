@@ -1,6 +1,8 @@
 use crate::loading::FontAssets;
+use crate::oware::Actor;
 use crate::GameState;
 use bevy::prelude::*;
+use board_game::board::Player;
 
 pub struct MenuPlugin;
 
@@ -91,4 +93,9 @@ fn click_play_button(
 
 fn cleanup_menu(mut commands: Commands, button: Query<Entity, With<Button>>) {
     commands.entity(button.single()).despawn_recursive();
+}
+
+#[derive(Resource)]
+struct OwareCfg {
+    players: [Actor; 2],
 }
