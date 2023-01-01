@@ -1,6 +1,11 @@
 use crate::loading::BoardAssets;
+use crate::menu::OwareCfg;
 use crate::GameState;
+use bevy::input::touch::TouchPhase;
 use bevy::prelude::*;
+use board_game::ai::mcts::MCTSBot;
+use board_game::ai::simple::{RandomBot, RolloutBot};
+use board_game::ai::Bot;
 use board_game::board::Board;
 use board_game::{board::Player, games::oware::OwareBoard};
 // use menu_plugin::MenuMaterials;
@@ -8,34 +13,52 @@ use board_game::{board::Player, games::oware::OwareBoard};
 #[derive(Component)]
 pub struct Bowl(usize);
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy, Debug)]
 pub enum Actor {
-    Bot(Player),
-    Human(Player),
+    Bot(Ai),
+    Human,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub enum Ai {
+    RandomBot,
+    RolloutBot(u32),
+    MCTSBot(u32, u8),
+    _MinMaxBot,
+}
+
+fn play_with_bot<const P: usize>(board: &mut OwareBoard<P>, mut bot: Box<dyn Bot<OwareBoard<P>>>) {
+    let mv = bot.select_move(board);
+    board.play(mv)
 }
 
 impl Actor {
-    pub fn player(&self) -> Player {
+    pub fn is_human(&self) -> bool {
         match self {
-            Self::Bot(pl) => *pl,
-            Self::Human(pl) => *pl,
+            Self::Bot(_) => false,
+            _ => true,
         }
-    }
-    pub fn is(&self, player: Player) -> bool {
-        self.player() == player
     }
     pub fn play<const P: usize>(&self, board: &mut OwareBoard<P>, mv: Option<usize>) {
         match self {
-            Self::Human(_) => {
+            Self::Human => {
                 if let Some(mv) = mv {
                     if board.is_available_move(mv) {
                         board.play(mv)
                     }
                 }
             }
-            Self::Bot(_) => {
-                let mv = board.random_available_move(&mut rand::thread_rng());
-                board.play(mv)
+            Self::Bot(ai) => {
+                let rng = rand::thread_rng();
+                play_with_bot(
+                    board,
+                    match ai {
+                        Ai::RandomBot => Box::new(RandomBot::new(rng)),
+                        Ai::RolloutBot(r) => Box::new(RolloutBot::new(*r, rng)),
+                        Ai::MCTSBot(i, ew) => Box::new(MCTSBot::new(*i as u64, *ew as f32, rng)),
+                        _ => unimplemented!("Ai moves"),
+                    },
+                )
             }
         }
     }
@@ -55,6 +78,7 @@ impl<const P: usize> Plugin for OwarePlugin<P> {
             .add_system_set(SystemSet::on_update(GameState::Playing)
                             .with_system(Self::update_bowls)
                             .with_system(Self::play)
+                            .with_system(Self::get_mv)
                             )
             .init_resource::<Oware<P>>()
             // .init_resource::<MenuMaterials>()
@@ -63,18 +87,23 @@ impl<const P: usize> Plugin for OwarePlugin<P> {
 }
 
 impl<const P: usize> OwarePlugin<P> {
-    fn spawn_board(mut commands: Commands, assets: Res<BoardAssets>, board: Res<Oware<P>>) {
+    fn spawn_board(
+        mut commands: Commands,
+        assets: Res<BoardAssets>,
+        mut cfg: ResMut<OwareCfg>,
+        mut board: ResMut<Oware<P>>,
+    ) {
+        if cfg.new_game {
+            *board = Oware::<P>::default();
+            cfg.new_game = false;
+        }
         [Player::A, Player::B]
             .iter()
             .enumerate()
             .for_each(|(i, &player)| {
                 let dir = if i == 0 { -1. } else { 1. };
                 let v_off = 22. * dir;
-                let actor = if i == 0 {
-                    Actor::Human(player)
-                } else {
-                    Actor::Bot(player)
-                };
+                let actor = cfg.get_actor(i);
                 commands
                     .spawn(SpriteBundle {
                         texture: assets.bowl.clone(),
@@ -90,7 +119,7 @@ impl<const P: usize> OwarePlugin<P> {
                                 format!("{}", board.score(player)),
                                 TextStyle {
                                     font: assets.fira_sans.clone(),
-                                    font_size: 20.,
+                                    font_size: 18.,
                                     color: Color::BLACK,
                                     ..default()
                                 },
@@ -101,11 +130,6 @@ impl<const P: usize> OwarePlugin<P> {
                         });
                     });
                 (0..P).for_each(|mv| {
-                    let actor = if i == 0 {
-                        Actor::Human(player)
-                    } else {
-                        Actor::Bot(player)
-                    };
                     let h = dir * (30. * P as f32 / 2. - mv as f32 * 30. - 15.);
                     commands
                         .spawn(SpriteBundle {
@@ -154,22 +178,48 @@ impl<const P: usize> OwarePlugin<P> {
             });
     }
     fn update_bowls(
-        // mut commands: Commands,
-        // assets: Res<BoardAssets>,
         board: Res<Oware<P>>,
-        bowls: Query<(&Children, &Actor, Option<&Bowl>)>,
+        bowls: Query<(&Children, &Name, &Actor, Option<&Bowl>)>,
         mut text: Query<&mut Text>,
     ) {
-        bowls.for_each(|(ch, a, mv)| {
+        bowls.for_each(|(ch, n, actor, mv)| {
+            let player = if n.contains("lA") {
+                Player::A
+            } else {
+                Player::B
+            };
             let mut text = text.get_mut(ch[0]).unwrap();
             text.sections[0].value = format!(
                 "{}",
-                mv.map_or(board.score(a.player()), |mv| board
-                    .get_seeds(a.player(), mv.0))
+                mv.map_or(format!("{actor:?}\n{}", board.score(player)), |mv| board
+                    .get_seeds(player, mv.0)
+                    .to_string())
             );
         });
     }
-    fn play(mut board: ResMut<Oware<P>>, actors: Query<&Actor>, mv: Res<Input<KeyCode>>) {
+    fn get_mv() {}
+    fn play(
+        mut commands: Commands,
+        mut state: ResMut<State<GameState>>,
+        mut board: ResMut<Oware<P>>,
+        actors: Query<(Entity, &GlobalTransform, &Bowl, &Name, &Actor)>,
+        mv: Res<Input<KeyCode>>,
+        mut cfg: ResMut<OwareCfg>,
+        mouse_button_inputs: Res<Input<MouseButton>>,
+        mut cursor: EventReader<CursorMoved>,
+        mut touch: EventReader<TouchInput>,
+        mut pos: Local<Vec2>,
+    ) {
+        *pos = cursor.iter().last().map_or(
+            touch.iter().last().map_or(*pos, |x| {
+                if x.phase == TouchPhase::Ended {
+                    x.position
+                } else {
+                    *pos
+                }
+            }),
+            |x| x.position,
+        );
         let mv = (if mv.just_released(KeyCode::Key1) {
             Some(0)
         } else if mv.just_released(KeyCode::Key2) {
@@ -188,6 +238,20 @@ impl<const P: usize> OwarePlugin<P> {
             Some(7)
         } else if mv.just_released(KeyCode::Key9) {
             Some(8)
+        } else if mouse_button_inputs.just_released(MouseButton::Left) {
+            bevy::log::info!("{pos:?}");
+            actors
+                .iter()
+                .find(|e| {
+                    e.4.is_human()
+                        && Vec2::new(
+                            pos.x - e.1.translation().x - 300.,
+                            pos.y - e.1.translation().y - 400.,
+                        )
+                        .length()
+                            < 16.
+                })
+                .map(|(_, _, Bowl(v), ..)| *v)
         } else {
             None
         })
@@ -195,9 +259,14 @@ impl<const P: usize> OwarePlugin<P> {
         if !board.is_done() {
             actors
                 .iter()
-                .find(|x| x.is(board.next_player()))
+                .find(|&x| x.3.contains(&format!("l{}", board.next_player().to_char())))
                 .unwrap()
+                .4
                 .play(&mut board, mv);
+        } else {
+            cfg.outcome = board.outcome();
+            state.push(GameState::Menu).unwrap();
+            actors.for_each(|e| commands.entity(e.0).despawn_recursive())
         }
     }
 }

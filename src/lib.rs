@@ -5,8 +5,6 @@ mod menu;
 mod oware;
 mod player;
 
-use std::time::Duration;
-
 use bevy::app::App;
 use bevy::prelude::*;
 
@@ -18,7 +16,7 @@ use oware::OwarePlugin;
 // use player::PlayerPlugin;
 
 #[cfg(debug_assertions)]
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::diagnostic::LogDiagnosticsPlugin;
 
 #[cfg(feature = "dev")]
 use bevy_inspector_egui::WorldInspectorPlugin;
@@ -45,24 +43,31 @@ impl Plugin for GamePlugin {
             .add_plugin(MenuPlugin)
             .add_plugin(ActionsPlugin)
             .add_plugin(InternalAudioPlugin)
-            .add_plugin(OwarePlugin::<4>)
             // .add_plugin(PlayerPlugin);
             ;
 
+        #[cfg(not(feature = "dev"))]
+        app.add_plugin(OwarePlugin::<6>);
+
         #[cfg(feature = "dev")]
-        app.add_system(auto_start)
+        app.add_plugin(OwarePlugin::<4>)
+            // .add_system(auto_start)
             .add_plugin(WorldInspectorPlugin::new());
 
         #[cfg(debug_assertions)]
         {
-            app.add_plugin(FrameTimeDiagnosticsPlugin::default())
+            app
+                // .add_plugin(FrameTimeDiagnosticsPlugin::default())
                 .add_plugin(LogDiagnosticsPlugin::default());
         }
     }
 }
 
+#[cfg(feature = "dev")]
 fn auto_start(mut state: ResMut<State<GameState>>, time: Res<Time>, mut timer: Local<Timer>) {
     if state.current() == &GameState::Menu {
+        use std::time::Duration;
+
         if timer.duration() == Duration::ZERO {
             timer.set_duration(Duration::from_millis(7729));
         }
