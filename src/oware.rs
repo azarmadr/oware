@@ -72,22 +72,6 @@ pub struct OwarePlugin<const P: usize>;
 #[derive(Resource, Default, Deref, DerefMut)]
 pub struct Oware<const P: usize>(OwareBoard<P>);
 
-/// This plugin handles player related stuff like movement
-/// Player logic is only active during the State `GameState::Playing`
-impl<const P: usize> Plugin for OwarePlugin<P> {
-    fn build(&self, app: &mut App) {
-        app.add_system_set(SystemSet::on_enter(GameState::Playing).with_system(Self::spawn_board))
-            .add_system_set(SystemSet::on_update(GameState::Playing)
-                            .with_system(Self::update_bowls)
-                            .with_system(Self::play)
-                            .with_system(Self::get_mv)
-                            )
-            .init_resource::<Oware<P>>()
-            // .init_resource::<MenuMaterials>()
-            ;
-    }
-}
-
 impl<const P: usize> OwarePlugin<P> {
     fn spawn_board(
         mut commands: Commands,
@@ -294,5 +278,19 @@ impl<const P: usize> OwarePlugin<P> {
             state.push(GameState::Menu).unwrap();
             actors.for_each(|e| commands.entity(e.0).despawn_recursive())
         }
+    }
+}
+
+impl<const P: usize> Plugin for OwarePlugin<P> {
+    fn build(&self, app: &mut App) {
+        app.add_system_set(SystemSet::on_enter(GameState::Playing).with_system(Self::spawn_board))
+            .add_system_set(SystemSet::on_update(GameState::Playing)
+                            .with_system(Self::update_bowls)
+                            .with_system(Self::play)
+                            .with_system(Self::get_mv)
+                            )
+            .init_resource::<Oware<P>>()
+            // .init_resource::<MenuMaterials>()
+            ;
     }
 }

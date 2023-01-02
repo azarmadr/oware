@@ -1,15 +1,16 @@
-mod actions;
-mod audio;
+// mod actions;
+// mod audio;
 mod loading;
 mod menu;
 mod oware;
-mod player;
+// mod player;
+mod tweens;
 
 use bevy::app::App;
 use bevy::prelude::*;
 
-use actions::ActionsPlugin;
-use audio::InternalAudioPlugin;
+// use actions::ActionsPlugin;
+// use audio::InternalAudioPlugin;
 use loading::LoadingPlugin;
 use menu::MenuPlugin;
 use oware::OwarePlugin;
@@ -41,8 +42,8 @@ impl Plugin for GamePlugin {
         app.add_state(GameState::Loading)
             .add_plugin(LoadingPlugin)
             .add_plugin(MenuPlugin)
-            .add_plugin(ActionsPlugin)
-            .add_plugin(InternalAudioPlugin)
+            // .add_plugin(ActionsPlugin)
+            // .add_plugin(InternalAudioPlugin)
             // .add_plugin(PlayerPlugin);
             ;
 

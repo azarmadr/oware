@@ -1,4 +1,3 @@
-use crate::loading::FontAssets;
 use crate::oware::{Actor, Ai};
 use crate::GameState;
 use bevy::app::AppExit;
@@ -16,10 +15,12 @@ fn setup_menu(mut commands: Commands, state: Res<State<GameState>>, cfg: Res<Owa
 
     commands.insert_resource(MenuState::new(
         *cfg,
-        if state.inactives().is_empty() {
-            Screens::Root
+        if state.inactives().is_empty() && state.current() == &GameState::Menu {
+            Screens::Init
         } else if cfg.outcome.is_some() {
             Screens::GameOver
+        } else if state.inactives().is_empty() {
+            Screens::Pause
         } else {
             Screens::Resume
         },
@@ -29,7 +30,8 @@ fn setup_menu(mut commands: Commands, state: Res<State<GameState>>, cfg: Res<Owa
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Screens {
-    Root,
+    Init,
+    Pause,
     Resume,
     NewGame,
     GameOver,
@@ -38,29 +40,22 @@ pub enum Screens {
 pub enum Actions {
     Close,
     Resume,
+    Menu,
     Quit,
     NewGame,
     PlayerAsFirst,
     Bot(Ai),
 }
-pub enum MyEvent {
-    CloseSettings,
-    PopSettings,
-    NewGame,
-    Quit,
-}
 impl ActionTrait for Actions {
     type State = OwareCfg;
-    type Event = MyEvent;
+    type Event = Self;
     fn handle(&self, state: &mut Self::State, event_writer: &mut EventWriter<Self::Event>) {
         match self {
-            Actions::Close => event_writer.send(MyEvent::CloseSettings),
-            Actions::PlayerAsFirst => state.human_is_first ^= true,
-            Actions::Resume => event_writer.send(MyEvent::PopSettings),
-            Actions::NewGame => event_writer.send(MyEvent::NewGame),
-            Actions::Quit => event_writer.send(MyEvent::Quit),
-            Actions::Bot(ai) => state.ai = *ai,
-            // _ => unimplemented!(),
+            Self::Close | Self::Menu | Self::Resume | Self::NewGame | Self::Quit => {
+                event_writer.send(*self)
+            }
+            Self::PlayerAsFirst => state.human_is_first ^= true,
+            Self::Bot(ai) => state.ai = *ai,
         }
     }
 }
@@ -90,6 +85,7 @@ impl ScreenTrait for Screens {
                     MenuItem::screen("New Game", Screens::NewGame),
                     MenuItem::action("Quit", Actions::Quit),
                 ],
+                Self::Pause => vec![MenuItem::action("Pause", Actions::Menu)],
                 Self::GameOver => vec![
                     MenuItem::headline(state.outcome()),
                     MenuItem::screen("New Game", Screens::NewGame),
@@ -107,7 +103,7 @@ impl ScreenTrait for Screens {
                     items.append(bot_list);
                     items
                 }
-                Self::Root => {
+                Self::Init => {
                     let mut items = vec![
                         MenuItem::headline("Oware"),
                         MenuItem::action("Start the Game", Actions::Close),
@@ -125,28 +121,38 @@ impl ScreenTrait for Screens {
     }
 }
 
-fn exit_menu(
-    mut my_event_er: EventReader<MyEvent>,
-    mut exit_ew: EventWriter<AppExit>,
-    mut state: ResMut<State<GameState>>,
-    menu_stat: Res<MenuState<Screens>>,
-    mut cfg: ResMut<OwareCfg>,
-) {
+fn show_menu(mut my_event_er: EventReader<Actions>, mut state: ResMut<State<GameState>>) {
     for event in my_event_er.iter() {
-        *cfg = *menu_stat.state();
         match event {
-            MyEvent::CloseSettings => state.set(GameState::Playing).unwrap(),
-            MyEvent::PopSettings => state.pop().unwrap(),
-            MyEvent::NewGame => {
-                cfg.new_game = true;
-                state.replace(GameState::Playing).unwrap()
-            }
-            MyEvent::Quit => exit_ew.send(AppExit),
+            Actions::Menu => state.push(GameState::Menu).unwrap(),
+            _ => (),
         }
     }
 }
+fn handle_events(
+    mut my_event_er: EventReader<Actions>,
+    mut exit_ew: EventWriter<AppExit>,
+    mut state: ResMut<State<GameState>>,
+    mut cfg: ResMut<OwareCfg>,
+    menu_state: Res<MenuState<Screens>>,
+) {
+    for event in my_event_er.iter() {
+        *cfg = *menu_state.state();
+        match event {
+            Actions::Close => state.set(GameState::Playing).unwrap(),
+            Actions::Resume => state.pop().unwrap(),
+            Actions::NewGame => {
+                cfg.new_game = true;
+                state.replace(GameState::Playing).unwrap()
+            }
+            Actions::Quit => exit_ew.send(AppExit),
+            _ => (),
+        }
+    }
+}
+
+// TODO move to oware
 fn cleanup(mut commands: Commands, cfg: Res<OwareCfg>, actors: Query<Entity, With<Actor>>) {
-    bevy_quickmenu::cleanup(&mut commands);
     if cfg.new_game {
         actors.for_each(|e| commands.entity(e).despawn_recursive())
     }
@@ -154,63 +160,19 @@ fn cleanup(mut commands: Commands, cfg: Res<OwareCfg>, actors: Query<Entity, Wit
 
 #[derive(Component)]
 pub struct Pause;
-fn menu_button(mut commands: Commands, font_assets: Res<FontAssets>) {
-    commands
-        .spawn(ButtonBundle {
-            style: Style {
-                size: Size::new(Val::Px(120.0), Val::Px(50.0)),
-                margin: UiRect::all(Val::Auto),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                position_type: PositionType::Absolute,
-                ..Default::default()
-            },
-            background_color: Color::rgb(0., 0., 0.9).into(),
-            ..Default::default()
-        })
-        .insert(Pause)
-        .with_children(|parent| {
-            parent.spawn(TextBundle {
-                text: Text {
-                    sections: vec![TextSection {
-                        value: "Menu".to_string(),
-                        style: TextStyle {
-                            font: font_assets.fira_sans.clone(),
-                            font_size: 40.0,
-                            color: Color::rgb(0.9, 0.9, 0.9),
-                        },
-                    }],
-                    alignment: Default::default(),
-                },
-                ..Default::default()
-            });
+fn menu_button(mut commands: Commands) {
+    let sheet = Stylesheet::default()
+        .with_background(BackgroundColor(Color::BLACK))
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            ..default()
         });
-}
-fn click_button(
-    mut state: ResMut<State<GameState>>,
-    mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor),
-        (Changed<Interaction>, With<Button>),
-    >,
-) {
-    for (interaction, mut color) in &mut interaction_query {
-        match *interaction {
-            Interaction::Clicked => {
-                state.push(GameState::Menu).unwrap();
-            }
-            Interaction::Hovered => {
-                *color = Color::rgb(0.25, 0.25, 0.25).into();
-            }
-            Interaction::None => {
-                *color = Color::rgb(0.15, 0.15, 0.15).into();
-            }
-        }
-    }
-}
-fn despawn_children<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
-    for item in query.iter() {
-        commands.entity(item).despawn_recursive();
-    }
+
+    commands.insert_resource(MenuState::new(
+        OwareCfg::default(),
+        Screens::Pause,
+        Some(sheet),
+    ));
 }
 #[derive(Resource, Clone, Copy)]
 pub struct OwareCfg {
@@ -255,16 +217,13 @@ impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(QuickMenuPlugin::<Screens>::new())
             .insert_resource(OwareCfg::default())
-            .add_event::<MyEvent>()
+            .add_event::<Actions>()
             .add_startup_system(setup_camera)
             .add_system_set(SystemSet::on_enter(GameState::Playing).with_system(menu_button))
             .add_system_set(SystemSet::on_resume(GameState::Playing).with_system(menu_button))
-            .add_system_set(SystemSet::on_update(GameState::Playing).with_system(click_button))
-            .add_system_set(
-                SystemSet::on_enter(GameState::Menu).with_system(despawn_children::<Pause>),
-            )
+            .add_system_set(SystemSet::on_update(GameState::Playing).with_system(show_menu))
             .add_system_set(SystemSet::on_enter(GameState::Menu).with_system(setup_menu))
             .add_system_set(SystemSet::on_exit(GameState::Menu).with_system(cleanup))
-            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(exit_menu));
+            .add_system_set(SystemSet::on_update(GameState::Menu).with_system(handle_events));
     }
 }
