@@ -3,11 +3,13 @@ use crate::menu::OwareCfg;
 use crate::GameState;
 use bevy::input::touch::TouchPhase;
 use bevy::prelude::*;
+use bevy::utils::HashMap;
 use board_game::ai::mcts::MCTSBot;
 use board_game::ai::simple::{RandomBot, RolloutBot};
 use board_game::ai::Bot;
 use board_game::board::Board;
 use board_game::{board::Player, games::oware::OwareBoard};
+use std::time::Duration;
 // use menu_plugin::MenuMaterials;
 
 #[derive(Component)]
@@ -133,7 +135,7 @@ impl<const P: usize> OwarePlugin<P> {
                     let h = dir * (30. * P as f32 / 2. - mv as f32 * 30. - 15.);
                     commands
                         .spawn(SpriteBundle {
-                            texture: assets.bowl.clone(),
+                            texture: assets.meatball_bowl.clone(),
                             transform: Transform::from_translation(Vec3::new(h, v_off, 1.)),
                             ..default()
                         })
@@ -179,22 +181,35 @@ impl<const P: usize> OwarePlugin<P> {
     }
     fn update_bowls(
         board: Res<Oware<P>>,
-        bowls: Query<(&Children, &Name, &Actor, Option<&Bowl>)>,
+        assets: Res<BoardAssets>,
+        mut bowls: Query<(&Children, &Name, &Actor, Option<&Bowl>, &mut Handle<Image>)>,
         mut text: Query<&mut Text>,
+        mut map: Local<HashMap<Name, bool>>,
     ) {
-        bowls.for_each(|(ch, n, actor, mv)| {
+        bowls.for_each_mut(|(ch, n, actor, mv, mut img)| {
             let player = if n.contains("lA") {
                 Player::A
             } else {
                 Player::B
             };
             let mut text = text.get_mut(ch[0]).unwrap();
+            let seeds = mv.map_or(board.score(player), |mv| board.get_seeds(player, mv.0));
             text.sections[0].value = format!(
-                "{}",
-                mv.map_or(format!("{actor:?}\n{}", board.score(player)), |mv| board
-                    .get_seeds(player, mv.0)
-                    .to_string())
+                "{}{seeds}",
+                if mv.is_none() {
+                    format!("{actor:?}\n")
+                } else {
+                    "".to_string()
+                }
             );
+            if map.get(n).map_or(true, |v| v ^ (seeds > 0)) {
+                map.insert(n.clone(), seeds > 0);
+                *img = if seeds > 0 {
+                    assets.meatball_bowl.clone()
+                } else {
+                    assets.bowl.clone()
+                }
+            }
         });
     }
     fn get_mv() {}
@@ -209,7 +224,18 @@ impl<const P: usize> OwarePlugin<P> {
         mut cursor: EventReader<CursorMoved>,
         mut touch: EventReader<TouchInput>,
         mut pos: Local<Vec2>,
+        time: Res<Time>,
+        mut timer: Local<Timer>,
     ) {
+        if (board.next_player().index() < 1) ^ cfg.human_is_first {
+            if timer.duration() == Duration::ZERO {
+                timer.set_duration(Duration::from_millis(1729));
+                timer.set_mode(TimerMode::Repeating)
+            }
+            if !timer.tick(time.delta()).just_finished() {
+                return;
+            }
+        }
         *pos = cursor.iter().last().map_or(
             touch.iter().last().map_or(*pos, |x| {
                 if x.phase == TouchPhase::Ended {

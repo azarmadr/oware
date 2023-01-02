@@ -43,6 +43,8 @@ pub struct BoardAssets {
     pub meatball: Handle<Image>,
     #[asset(path = "textures/Ghostpixxells_pixelfood/04_bowl.png")]
     pub bowl: Handle<Image>,
+    #[asset(path = "textures/Ghostpixxells_pixelfood/05_meatball_bowl.png")]
+    pub meatball_bowl: Handle<Image>,
     #[asset(path = "fonts/FiraSans-Bold.ttf")]
     pub fira_sans: Handle<Font>,
 }
