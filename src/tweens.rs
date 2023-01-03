@@ -54,3 +54,11 @@ pub fn shake_seq(duration: std::time::Duration) -> Sequence<Transform> {
     }))
 }
 */
+pub struct GameTweeningPlugin;
+
+impl Plugin for GameTweeningPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugin(TweeningPlugin)
+            .add_system(component_animator_system::<Transform>);
+    }
+}

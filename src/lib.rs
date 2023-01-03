@@ -22,6 +22,8 @@ use bevy::diagnostic::LogDiagnosticsPlugin;
 #[cfg(feature = "dev")]
 use bevy_inspector_egui::WorldInspectorPlugin;
 
+use self::tweens::GameTweeningPlugin;
+
 // This example game uses States to separate logic
 // See https://bevy-cheatbook.github.io/programming/states.html
 // Or https://github.com/bevyengine/bevy/blob/main/examples/ecs/state.rs
@@ -42,6 +44,7 @@ impl Plugin for GamePlugin {
         app.add_state(GameState::Loading)
             .add_plugin(LoadingPlugin)
             .add_plugin(MenuPlugin)
+            .add_plugin(GameTweeningPlugin)
             // .add_plugin(ActionsPlugin)
             // .add_plugin(InternalAudioPlugin)
             // .add_plugin(PlayerPlugin);
