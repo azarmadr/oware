@@ -177,7 +177,7 @@ impl<const P: usize> OwarePlugin<P> {
             .iter()
             .filter_map(|(c, _, b, _, t)| b.map(|b| (b, t, c)))
             .filter(|(x, ..)| {
-                seeds as usize >= 2 * P as usize || modulo_dist(x.mv()) <= seeds as usize
+                seeds as usize >= 2 * P || modulo_dist(x.mv()) <= seeds as usize
             })
             .partition(|x| x.0.mv() == mv);
         let fro = fro.pop().unwrap();
@@ -214,6 +214,14 @@ impl<const P: usize> OwarePlugin<P> {
             commands
                 .spawn((Animator::new(tween), Moved))
                 .insert(assets.meatball_sprite(SIZE / 4., *fro.1));
+        commands
+            .entity(next.2[0])
+            .insert(Animator::new(BeTween::with_lerp(
+                millis(seeds as u64, 243),
+                move |t: &mut Text, _, r| {
+                    t.sections[0].value = format!("{}", )
+                },
+            )));
         }
 
         board.play(mv % P);
