@@ -8,6 +8,7 @@ mod tweens;
 
 use bevy::app::App;
 use bevy::prelude::*;
+use iyes_loopless::prelude::*;
 
 // use actions::ActionsPlugin;
 // use audio::InternalAudioPlugin;
@@ -32,7 +33,7 @@ enum GameState {
     // During the loading State the LoadingPlugin will load our assets
     Loading,
     // During this State the actual game logic is executed
-    Playing,
+    Game,
     // Here the menu is drawn and waiting for player interaction
     Menu,
 }
@@ -41,7 +42,8 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_state(GameState::Loading)
+        app
+            .add_loopless_state(GameState::Loading)
             .add_plugin(LoadingPlugin)
             .add_plugin(MenuPlugin)
             .add_plugin(GameTweeningPlugin)
@@ -55,7 +57,7 @@ impl Plugin for GamePlugin {
 
         #[cfg(feature = "dev")]
         app.add_plugin(OwarePlugin::<4>)
-            // .add_system(auto_start)
+            .add_system(auto_start)
             .add_plugin(WorldInspectorPlugin::new());
 
         #[cfg(debug_assertions)]
@@ -68,15 +70,25 @@ impl Plugin for GamePlugin {
 }
 
 #[cfg(feature = "dev")]
-fn auto_start(mut state: ResMut<State<GameState>>, time: Res<Time>, mut timer: Local<Timer>) {
-    if state.current() == &GameState::Menu {
-        use std::time::Duration;
+fn auto_start(
+    mut act: EventWriter<crate::menu::Actions>,
+    time: Res<Time>,
+    mut timer: Local<Timer>,
+) {
+    use self::menu::Actions;
+    use std::time::Duration;
 
-        if timer.duration() == Duration::ZERO {
-            timer.set_duration(Duration::from_millis(7729));
-        }
-        if timer.tick(time.delta()).just_finished() {
-            state.set(GameState::Playing).unwrap();
-        }
+    if timer.duration() == Duration::ZERO {
+        timer.set_duration(Duration::from_millis(729));
+    }
+    if timer.tick(time.delta()).just_finished() {
+        act.send(Actions::NewGame);
+    }
+}
+
+/// Despawn all entities with a given component type
+fn despawn_with<T: Component>(mut commands: Commands, q: Query<Entity, With<T>>) {
+    for e in q.iter() {
+        commands.entity(e).despawn_recursive();
     }
 }

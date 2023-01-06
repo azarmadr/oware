@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::prelude::*;
 pub use bevy_tweening::*;
 
@@ -6,9 +8,9 @@ pub struct BeTween<T> {
     lerp: Box<Lerp<T>>,
     start: Option<T>,
 }
-impl<T> BeTween<T> {
+impl<T: Clone + Send + Sync + 'static> BeTween<T> {
     /// Construct a lens from a pair of getter functions
-    pub fn with_lerp<U>(lerp: U) -> Self
+    pub fn _new<U>(lerp: U) -> Self
     where
         U: Fn(&mut T, &T, f32) + Send + Sync + 'static,
     {
@@ -16,6 +18,19 @@ impl<T> BeTween<T> {
             lerp: Box::new(lerp),
             start: None,
         }
+    }
+    pub fn with_lerp<U>(duration: Duration, lerp: U) -> Tween<T>
+    where
+        U: Fn(&mut T, &T, f32) + Send + Sync + 'static,
+    {
+        Tween::new(
+            EaseMethod::Linear,
+            duration,
+            Self {
+                lerp: Box::new(lerp),
+                start: None,
+            },
+        )
     }
 }
 impl<T: Clone> Lens<T> for BeTween<T> {
@@ -59,6 +74,7 @@ pub struct GameTweeningPlugin;
 impl Plugin for GameTweeningPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(TweeningPlugin)
+            .add_system(component_animator_system::<Text>)
             .add_system(component_animator_system::<Transform>);
     }
 }
