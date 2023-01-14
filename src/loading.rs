@@ -32,11 +32,11 @@ pub struct AudioAssets {
 }
 */
 
-fn sprite(texture: Handle<Image>, size: Option<f32>, transform: Transform) -> SpriteBundle {
+pub fn sprite(texture: &Handle<Image>, size: f32, transform: Transform) -> SpriteBundle {
     SpriteBundle {
-        texture,
+        texture: texture.clone(),
         sprite: Sprite {
-            custom_size: size.map(|x| Vec2::new(x, x)),
+            custom_size: Some(size).map(|x| Vec2::new(x, x)),
             ..default()
         },
         transform,
@@ -59,15 +59,6 @@ pub struct BoardAssets {
 }
 
 impl BoardAssets {
-    pub fn meatball_sprite(&self, size: f32, transform: Transform) -> SpriteBundle {
-        sprite(self.meatball.clone(), Some(size), transform)
-    }
-    pub fn meatball_bowl_sprite(&self, size: f32, transform: Transform) -> SpriteBundle {
-        sprite(self.meatball_bowl.clone(), Some(size), transform)
-    }
-    pub fn bowl_sprite(&self, size: f32, transform: Transform) -> SpriteBundle {
-        sprite(self.bowl.clone(), Some(size), transform)
-    }
     pub fn text<S: Into<String>>(
         &self,
         text: S,

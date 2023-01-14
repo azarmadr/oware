@@ -165,6 +165,7 @@ pub struct OwareCfg {
     pub ai: Ai,
     pub new_game: bool,
     pub outcome: Option<Outcome>,
+    pub init_seeds: u8,
 }
 impl Default for OwareCfg {
     fn default() -> Self {
@@ -173,6 +174,7 @@ impl Default for OwareCfg {
             ai: Ai::Random,
             outcome: None,
             new_game: false,
+            init_seeds: if cfg!(feature = "dev") { 2 } else { 4 },
         }
     }
 }
