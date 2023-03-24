@@ -2,25 +2,24 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use bevy::prelude::*;
-use bevy::window::WindowId;
+use bevy::window::PrimaryWindow;
 use bevy::winit::WinitWindows;
 use bevy::DefaultPlugins;
-use bevy_game::GamePlugin;
+use oware::GamePlugin;
 use std::io::Cursor;
 use winit::window::Icon;
 
 fn main() {
     App::new()
-        .insert_resource(Msaa { samples: 1 })
+        .insert_resource(Msaa::Sample2)
         .insert_resource(ClearColor(Color::rgb(0.4, 0.4, 0.4)))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
-                width: 600.,
-                height: 800.,
+            primary_window: Some(Window {
+                resolution: (600., 800.).into(),
                 title: "Oware".to_string(),
                 canvas: Some("#bevy".to_owned()),
                 ..Default::default()
-            },
+            }),
             ..default()
         }))
         .add_plugin(GamePlugin)
@@ -29,8 +28,12 @@ fn main() {
 }
 
 // Sets the icon on windows and X11
-fn set_window_icon(windows: NonSend<WinitWindows>) {
-    let primary = windows.get_window(WindowId::primary()).unwrap();
+fn set_window_icon(
+    windows: NonSend<WinitWindows>,
+    primary_window: Query<Entity, With<PrimaryWindow>>,
+) {
+    let primary_entity = primary_window.single();
+    let primary = windows.get_window(primary_entity).unwrap();
     let icon_buf = Cursor::new(include_bytes!(
         "../build/macos/AppIcon.iconset/icon_256x256.png"
     ));

@@ -8,7 +8,6 @@ mod tweens;
 
 use bevy::app::App;
 use bevy::prelude::*;
-use iyes_loopless::prelude::*;
 
 // use actions::ActionsPlugin;
 // use audio::InternalAudioPlugin;
@@ -21,16 +20,17 @@ use oware::OwarePlugin;
 use bevy::diagnostic::LogDiagnosticsPlugin;
 
 #[cfg(feature = "dev")]
-use bevy_inspector_egui::WorldInspectorPlugin;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use self::tweens::GameTweeningPlugin;
 
 // This example game uses States to separate logic
 // See https://bevy-cheatbook.github.io/programming/states.html
 // Or https://github.com/bevyengine/bevy/blob/main/examples/ecs/state.rs
-#[derive(Clone, Eq, PartialEq, Debug, Hash, Copy)]
+#[derive(Clone,Default,States, Eq, PartialEq, Debug, Hash, Copy)]
 enum GameState {
     // During the loading State the LoadingPlugin will load our assets
+    #[default]
     Loading,
     // During this State the actual game logic is executed
     Game,
@@ -43,7 +43,7 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_loopless_state(GameState::Loading)
+            .add_state::<GameState>()
             .add_plugin(LoadingPlugin)
             .add_plugin(MenuPlugin)
             .add_plugin(GameTweeningPlugin)

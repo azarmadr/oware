@@ -1,50 +1,27 @@
-use crate::oware::{Actor, Ai, PC};
-use crate::{despawn_with, GameState};
+use crate::{
+    despawn_with,
+    oware::{Actor, Ai, PC},
+    GameState,
+};
+#[cfg(not(target_arch = "wasm32"))]
 use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy_quickmenu::{style::Stylesheet, *};
 use board_game::board::{Outcome, Player};
 use board_game::pov::NonPov;
-use iyes_loopless::prelude::*;
-
-fn setup_camera(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
-}
-fn sm(mut commands: Commands) {
-    let sheet = Stylesheet::default().with_background(BackgroundColor(Color::BLACK));
-
-    commands.insert_resource(OwareCfg::default());
-    commands.insert_resource(MenuState::new(
-        OwareCfg::default(),
-        Screens::NewGame,
-        Some(sheet),
-    ))
-}
-fn setup_menu(mut commands: Commands, cfg: Res<OwareCfg>) {
-    let sheet = Stylesheet::default().with_background(BackgroundColor(Color::BLACK));
-
-    commands.insert_resource(MenuState::new(
-        *cfg,
-        if cfg.outcome.is_some() {
-            Screens::GameOver
-        } else {
-            Screens::Resume
-        },
-        Some(sheet),
-    ))
-}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub enum Screens {
+enum Screens {
+    Game,
     Pause,
-    Resume,
     NewGame,
     GameOver,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Actions {
     Resume,
-    Menu,
+    Pause,
+    #[cfg(not(target_arch = "wasm32"))]
     Quit,
     NewGame,
     PlayerAsFirst,
@@ -55,7 +32,13 @@ impl ActionTrait for Actions {
     type Event = Self;
     fn handle(&self, state: &mut Self::State, event_writer: &mut EventWriter<Self::Event>) {
         match self {
-            Self::Menu | Self::Resume | Self::NewGame | Self::Quit => event_writer.send(*self),
+            Self::Pause | Self::Resume => event_writer.send(*self),
+            #[cfg(not(target_arch = "wasm32"))]
+            Self::Quit => event_writer.send(*self),
+            Self::NewGame => {
+                state.new_game = true;
+                event_writer.send(*self)
+            }
             Self::PlayerAsFirst => state.human_is_first ^= true,
             Self::Bot(ai) => state.ai = *ai,
         }
@@ -81,16 +64,18 @@ impl ScreenTrait for Screens {
         Menu::new(
             format!("{self:?}"),
             match self {
-                Self::Resume => vec![
+                Self::Pause => vec![
                     MenuItem::headline("Paused"),
                     MenuItem::action("Resume", Actions::Resume),
                     MenuItem::screen("New Game", Screens::NewGame),
+                    #[cfg(not(target_arch = "wasm32"))]
                     MenuItem::action("Quit", Actions::Quit),
                 ],
-                Self::Pause => vec![MenuItem::action("Pause", Actions::Menu)],
+                Self::Game => vec![MenuItem::action("Pause", Actions::Pause)],
                 Self::GameOver => vec![
                     MenuItem::headline(state.outcome()),
                     MenuItem::screen("New Game", Screens::NewGame),
+                    #[cfg(not(target_arch = "wasm32"))]
                     MenuItem::action("Quit", Actions::Quit),
                 ],
                 Self::NewGame => {
@@ -111,54 +96,11 @@ impl ScreenTrait for Screens {
     }
 }
 
-fn show_menu(mut my_event_er: EventReader<Actions>, mut commands: Commands) {
-    for event in my_event_er.iter() {
-        if event == &Actions::Menu {
-            commands.insert_resource(NextState(GameState::Menu))
-        }
-    }
-}
-fn handle_events(
-    mut my_event_er: EventReader<Actions>,
-    mut exit_ew: EventWriter<AppExit>,
-    mut commands: Commands,
-    mut cfg: ResMut<OwareCfg>,
-    menu_state: Res<MenuState<Screens>>,
-) {
-    for event in my_event_er.iter() {
-        *cfg = *menu_state.state();
-        match event {
-            Actions::Resume | Actions::NewGame => {
-                commands.insert_resource(NextState(GameState::Game))
-            }
-            Actions::Quit => exit_ew.send(AppExit),
-            _ => (),
-        }
-        cfg.new_game = Actions::NewGame == *event;
-    }
-}
-
 // TODO move to oware
-fn cleanup(cfg: Res<OwareCfg>) -> bool {
-    cfg.new_game || cfg.outcome.is_some()
+fn cleanup(cfg: Option<Res<OwareCfg>>) -> bool {
+    cfg.map_or(false, |cfg|cfg.new_game || cfg.outcome.is_some())
 }
 
-#[derive(Component)]
-pub struct Pause;
-fn menu_button(mut commands: Commands) {
-    let sheet = Stylesheet::default()
-        .with_background(BackgroundColor(Color::BLACK))
-        .with_style(Style {
-            position_type: PositionType::Absolute,
-            ..default()
-        });
-
-    commands.insert_resource(MenuState::new(
-        OwareCfg::default(),
-        Screens::Pause,
-        Some(sheet),
-    ));
-}
 #[derive(Resource, Clone, Copy)]
 pub struct OwareCfg {
     pub human_is_first: bool,
@@ -201,29 +143,78 @@ impl OwareCfg {
     }
 }
 
-pub struct MenuPlugin;
+fn menu(mut commands: Commands, cfg: Option<Res<OwareCfg>>, state: Res<State<GameState>>) {
+    if !state.is_changed() {
+        return;
+    }
 
+    let in_game = state.0 == GameState::Game;
+    let sheet = Stylesheet::default()
+        .with_background(BackgroundColor(Color::BLACK))
+        .with_style(Style {
+            position_type: if in_game {
+                PositionType::Absolute
+            } else {
+                default()
+            },
+            ..default()
+        });
+
+    if cfg.is_none() {
+        commands.insert_resource(OwareCfg::default());
+    }
+    let new_game = cfg.is_none();
+    let cfg = cfg.map_or(OwareCfg::default(), |x| x.clone());
+    commands.insert_resource(MenuState::new(
+        cfg,
+        if cfg.outcome.is_some() {
+            Screens::GameOver
+        } else if in_game {
+            Screens::Game
+        } else if new_game {
+            Screens::NewGame
+        } else {
+            Screens::Pause
+        },
+        Some(sheet),
+    ))
+}
+fn handle_events(
+    mut action_event: EventReader<Actions>,
+    #[cfg(not(target_arch = "wasm32"))]
+    mut app_event: EventWriter<AppExit>,
+    mut commands: Commands,
+    menu_state: Option<Res<MenuState<Screens>>>,
+) {
+    if let Some(menu_state) = menu_state {
+        if !action_event.is_empty() {
+            commands.insert_resource(*menu_state.state());
+        }
+    }
+    for event in action_event.iter() {
+        match event {
+            Actions::Resume | Actions::NewGame => {
+                commands.insert_resource(NextState(Some(GameState::Game)))
+            }
+            Actions::Pause => commands.insert_resource(NextState(Some(GameState::Menu))),
+            #[cfg(not(target_arch = "wasm32"))]
+            Actions::Quit => app_event.send(AppExit),
+            _ => (),
+        }
+    }
+}
+
+pub struct MenuPlugin;
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(QuickMenuPlugin::<Screens>::new())
-            // .insert_resource(OwareCfg::default())
             .add_event::<Actions>()
-            .add_startup_system(setup_camera)
-            .add_enter_system(GameState::Game, menu_button)
-            .add_exit_system(GameState::Game, setup_menu)
-            .add_exit_system(GameState::Loading, sm)
-            .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::Menu)
-                    .with_system(handle_events)
-                    .with_system(despawn_with::<PC>.run_if(cleanup))
-                    .into(),
-            )
-            .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::Game)
-                    .with_system(show_menu)
-                    .into(),
+            .add_startup_system(|mut commands: Commands| {
+                commands.spawn(Camera2dBundle::default());
+            })
+            .add_system(menu)
+            .add_system(handle_events)
+            .add_system(despawn_with::<PC>.run_if(cleanup.and_then(in_state(GameState::Menu)))
             );
     }
 }

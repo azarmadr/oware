@@ -17,7 +17,7 @@ pub struct Moved;
 #[derive(Component, Debug, Clone)]
 pub struct MoveBall(pub Bowl, pub usize);
 
-#[cfg_attr(feature = "dev", derive(bevy_inspector_egui::Inspectable))]
+// #[cfg_attr(feature = "dev", derive(bevy_inspector_egui::Inspectable))]
 #[derive(Component, Debug, Clone, Deref, DerefMut, PartialEq, Eq)]
 pub struct Bowl(pub usize);
 impl Bowl {
@@ -31,7 +31,7 @@ impl Bowl {
     }
 }
 
-#[cfg_attr(feature = "dev", derive(bevy_inspector_egui::Inspectable))]
+// #[cfg_attr(feature = "dev", derive(bevy_inspector_egui::Inspectable))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Actor {
     Bot(Ai),

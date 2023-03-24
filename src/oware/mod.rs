@@ -9,14 +9,13 @@ use board_game::{
     board::{Board, Player},
     games::oware::OwareBoard,
 };
-use iyes_loopless::prelude::*;
 use std::time::Duration;
 
 mod components;
 pub use components::*;
 const SIZE: f32 = 50.;
 
-#[cfg_attr(feature = "dev", derive(bevy_inspector_egui::Inspectable))]
+// #[cfg_attr(feature = "dev", derive(bevy_inspector_egui::quick::ResourceInspectable))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, Default)]
 pub enum Ai {
     #[default]
@@ -283,7 +282,7 @@ impl<const P: usize> OwarePlugin<P> {
     }
     fn conclude_game(mut commands: Commands, mut cfg: ResMut<OwareCfg>, board: Res<Oware<P>>) {
         cfg.outcome = board.outcome();
-        commands.insert_resource(NextState(GameState::Menu));
+        commands.insert_resource(NextState(Some(GameState::Menu)));
     }
     fn focus(
         mut pos: Local<Vec2>,
@@ -342,29 +341,27 @@ impl<const P: usize> OwarePlugin<P> {
 
 impl<const P: usize> Plugin for OwarePlugin<P> {
     fn build(&self, app: &mut App) {
-        app.add_enter_system(GameState::Game, Self::spawn_board)
-            .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::Game)
-                    .with_system(Self::update_bowls)
-                    .with_system(Self::sow)
-                    .with_system(Self::focus.run_if_not(entities_exist_with::<Moved>))
-                    .with_system(Self::update_scores.run_if_not(entities_exist_with::<Moved>))
-                    .with_system(
-                        Self::play
-                            .run_if_not(Oware::<P>::is_done)
-                            .run_if_not(entities_exist_with::<Moved>),
-                    )
-                    .with_system(Self::conclude_game.run_if(Oware::<P>::is_done))
-                    .with_system(Self::rm_ball)
-                    .into(),
+        app.add_system(Self::spawn_board.in_schedule(OnEnter(GameState::Game)))
+            .add_systems(
+                (
+                    Self::update_bowls,
+                    Self::sow,
+                    Self::focus.run_if(not(entities_exist_with::<Moved>)),
+                    Self::update_scores.run_if(not(entities_exist_with::<Moved>)),
+                    Self::play
+                        .run_if(not(Oware::<P>::is_done))
+                        .run_if(not(entities_exist_with::<Moved>)),
+                    Self::conclude_game.run_if(Oware::<P>::is_done),
+                    Self::rm_ball,
+                )
+                    .in_set(OnUpdate(GameState::Game)),
             )
             .init_resource::<Oware<P>>();
 
         #[cfg(feature = "dev")]
         {
-            use bevy_inspector_egui::RegisterInspectable;
-            app.register_inspectable::<Bowl>();
+            // use bevy_inspector_egui::RegisterInspectable;
+            // app.register_inspectable::<Bowl>();
         }
     }
 }

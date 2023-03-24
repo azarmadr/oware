@@ -1,8 +1,8 @@
 [package]
-name = "bevy_game"                               # ToDo
+name = "oware"
 version = "0.1.0"
 publish = false
-authors = ["Niklas Eicker <git@nikl.me>"]        # ToDo: you are the author ;)
+authors = ["Azhar Madar Shaik <azarmadr@pm.me>"]        # ToDo: you are the author ;)
 edition = "2021"
 exclude = ["dist", "build", "assets", "credits"]
 
@@ -18,16 +18,14 @@ codegen-units = 1
 
 [features]
 dev = [
-  "bevy/dynamic",
+  "bevy/bevy_dylib",
   "bevy-inspector-egui",
-  "iyes_loopless/bevy-inspector-egui",
 ]
 
 [dependencies]
-bevy = { version = "0.9", default-features = false, features = [
+bevy = { version = "0.10", default-features = false, features = [
   "bevy_asset",
   "bevy_winit",
-  # "render",
   "bevy_render",        # Rendering framework core
   "bevy_core_pipeline", # Common rendering abstractions
   "bevy_sprite",        # 2D (sprites) rendering
@@ -39,18 +37,17 @@ bevy = { version = "0.9", default-features = false, features = [
   "png",
   "x11",
 ] }
-# bevy_kira_audio = { version = "0.13" }
-bevy_asset_loader = { version = "0.14", features = ["2d", "stageless"] }
+# bevy_kira_audio = { version = "0.15" }
+bevy_asset_loader = { version = "0.15", features = ["2d"] }
 rand = { version = "0.8.5" }
-bevy-inspector-egui = { version = "0.15.0", optional = true }
-image = { version = "0.24", default-features = false }
+bevy-inspector-egui = { version = "0.18", optional = true }
 board-game = { git = "https://github.com/azarmadr/board-game-rs", version = "0.6.0" }
-# menu-plugin = { git = "https://github.com/azarmadr/bevy-ui-menu-plugin", version = "0.1.0" }
-bevy_quickmenu = "0.1.5"
-# bevy_ecs_tilemap = "0.9.0"
-bevy_tweening = { version = "0.6.0", default-features = false }
-iyes_loopless = "0.9.1"
-winit = { version = "0.27", default-features = false }
+bevy_quickmenu ={ git = "https://github.com/azarmadr/bevy_quickmenu", version = "0.1.5" }
+bevy_tweening = { version = "0.7.0", default-features = false }
+
+# keep the following in sync with Bevy's dependencies
+winit = { version = "0.28", default-features = false }
+image = { version = "0.24", default-features = false }
 
 [build-dependencies]
 embed-resource = "1.4"
