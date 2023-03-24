@@ -1,6 +1,6 @@
 [package]
 name = "oware"
-version = "0.1.0"
+version = "0.2.0"
 publish = false
 authors = ["Azhar Madar Shaik <azarmadr@pm.me>"]        # ToDo: you are the author ;)
 edition = "2021"
