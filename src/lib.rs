@@ -24,17 +24,11 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use self::tweens::GameTweeningPlugin;
 
-// This example game uses States to separate logic
-// See https://bevy-cheatbook.github.io/programming/states.html
-// Or https://github.com/bevyengine/bevy/blob/main/examples/ecs/state.rs
 #[derive(Clone,Default,States, Eq, PartialEq, Debug, Hash, Copy)]
 enum GameState {
-    // During the loading State the LoadingPlugin will load our assets
     #[default]
     Loading,
-    // During this State the actual game logic is executed
     Game,
-    // Here the menu is drawn and waiting for player interaction
     Menu,
 }
 

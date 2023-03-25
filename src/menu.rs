@@ -16,6 +16,7 @@ enum Screens {
     Pause,
     NewGame,
     GameOver,
+    Seeds,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Actions {
@@ -26,6 +27,7 @@ pub enum Actions {
     NewGame,
     PlayerAsFirst,
     Bot(Ai),
+    SetSeeds(u8),
 }
 impl ActionTrait for Actions {
     type State = OwareCfg;
@@ -41,6 +43,7 @@ impl ActionTrait for Actions {
             }
             Self::PlayerAsFirst => state.human_is_first ^= true,
             Self::Bot(ai) => state.ai = *ai,
+            Self::SetSeeds(n) => state.init_seeds = *n,
         }
     }
 }
@@ -51,6 +54,8 @@ impl ScreenTrait for Screens {
         &self,
         state: &<<Self as ScreenTrait>::Action as bevy_quickmenu::ActionTrait>::State,
     ) -> bevy_quickmenu::Menu<Self> {
+        let seed_actions =
+            |n| MenuItem::action(format!("{n}"), Actions::SetSeeds(n)).checked(state.init_seeds == n);
         let bot_list = &mut [
             Ai::Random,
             Ai::Rollout(27),
@@ -86,11 +91,16 @@ impl ScreenTrait for Screens {
                         MenuItem::label("Player Position"),
                         MenuItem::action("Is First", Actions::PlayerAsFirst)
                             .checked(state.human_is_first),
+                        MenuItem::screen("Initial Seeds", Screens::Seeds),
                         MenuItem::label("Bot Type"),
                     ];
                     items.append(bot_list);
                     items
-                }
+                },
+                Self::Seeds => [MenuItem::headline("Initial Seeds")]
+                    .into_iter()
+                    .chain((3..6).map(|x| seed_actions(x)))
+                    .collect(),
             },
         )
     }
@@ -98,7 +108,7 @@ impl ScreenTrait for Screens {
 
 // TODO move to oware
 fn cleanup(cfg: Option<Res<OwareCfg>>) -> bool {
-    cfg.map_or(false, |cfg|cfg.new_game || cfg.outcome.is_some())
+    cfg.map_or(false, |cfg| cfg.new_game || cfg.outcome.is_some())
 }
 
 #[derive(Resource, Clone, Copy)]
@@ -144,10 +154,6 @@ impl OwareCfg {
 }
 
 fn menu(mut commands: Commands, cfg: Option<Res<OwareCfg>>, state: Res<State<GameState>>) {
-    if !state.is_changed() {
-        return;
-    }
-
     let in_game = state.0 == GameState::Game;
     let sheet = Stylesheet::default()
         .with_background(BackgroundColor(Color::BLACK))
@@ -160,19 +166,19 @@ fn menu(mut commands: Commands, cfg: Option<Res<OwareCfg>>, state: Res<State<Gam
             ..default()
         });
 
+    let new_game = cfg.is_none();
     if cfg.is_none() {
         commands.insert_resource(OwareCfg::default());
     }
-    let new_game = cfg.is_none();
     let cfg = cfg.map_or(OwareCfg::default(), |x| x.clone());
     commands.insert_resource(MenuState::new(
         cfg,
         if cfg.outcome.is_some() {
             Screens::GameOver
-        } else if in_game {
-            Screens::Game
         } else if new_game {
             Screens::NewGame
+        } else if in_game {
+            Screens::Game
         } else {
             Screens::Pause
         },
@@ -181,8 +187,7 @@ fn menu(mut commands: Commands, cfg: Option<Res<OwareCfg>>, state: Res<State<Gam
 }
 fn handle_events(
     mut action_event: EventReader<Actions>,
-    #[cfg(not(target_arch = "wasm32"))]
-    mut app_event: EventWriter<AppExit>,
+    #[cfg(not(target_arch = "wasm32"))] mut app_event: EventWriter<AppExit>,
     mut commands: Commands,
     menu_state: Option<Res<MenuState<Screens>>>,
 ) {
@@ -212,9 +217,8 @@ impl Plugin for MenuPlugin {
             .add_startup_system(|mut commands: Commands| {
                 commands.spawn(Camera2dBundle::default());
             })
-            .add_system(menu)
+            .add_system(menu.run_if(state_changed::<GameState>().and_then(not(in_state(GameState::Loading)))))
             .add_system(handle_events)
-            .add_system(despawn_with::<PC>.run_if(cleanup.and_then(in_state(GameState::Menu)))
-            );
+            .add_system(despawn_with::<PC>.run_if(cleanup.and_then(in_state(GameState::Menu))));
     }
 }
